@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>外太空衛星散熱計算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --panel-bg: #0a0c10;
+            --card-bg: #14181f;
+            --accent-cyan: #00f2ff;
+            --accent-orange: #ff8c00;
+            --grid-color: rgba(0, 242, 255, 0.05);
+            --border-color: #2d3748;
+        }
+
+        body {
+            background-color: var(--panel-bg);
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: #cbd5e0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .industrial-card {
+            background-color: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-top: 4px solid var(--border-color);
+            position: relative;
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
+        }
+
+        .industrial-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), transparent);
+            opacity: 0.5;
+        }
+
+        .value-display {
+            font-family: 'Share Tech Mono', monospace;
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
+        }
+
+        input[type="number"] {
+            background: #000;
+            border: 1px solid #4a5568;
+            color: var(--accent-cyan);
+            padding: 4px 8px;
+            font-family: 'Share Tech Mono', monospace;
+            outline: none;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: #1a202c;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-cyan);
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+
+        .label-tech {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #718096;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .notes-area {
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.2),
+                rgba(0, 0, 0, 0.2) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            border-left: 2px solid var(--accent-orange);
+            font-size: 0.75rem;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-10 flex flex-col md:flex-row justify-between items-end border-b-2 border-slate-700 pb-4">
+            <div>
+                <h1 class="text-4xl font-black text-white tracking-tighter italic">SATELLITE THERMAL <span class="text-cyan-400">ANALYSIS</span></h1>
+                <p class="text-slate-500 text-sm mt-1">SYSTEM VERSION: 2.4.0 // CREATED BY RANDY CHEN</p>
+            </div>
+            <div class="text-right text-xs text-slate-500 font-mono mt-4 md:mt-0">
+                STATUS: <span class="text-green-500">OPERATIONAL</span><br>
+                MODEL: BOLTZMANN_STD_01
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- 控制面板 -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="industrial-card p-6">
+                    <h2 class="text-sm font-bold text-cyan-500 mb-6 flex items-center">
+                        <span class="w-2 h-2 bg-cyan-500 mr-2"></span> INPUT PARAMETERS
+                    </h2>
+                    
+                    <div class="space-y-5">
+                        <div>
+                            <label class="label-tech">Solar Flux (太陽常數，地球附近約為 1367W/m2) (S) [W/m²]</label>
+                            <input type="number" id="solarFlux" value="1367" class="w-full">
+                        </div>
+
+                        <div>
+                            <label class="label-tech">Absorptivity (α) (表面對太陽光的吸收率): <span id="valAlpha" class="text-cyan-400">0.30</span></label>
+                            <input type="range" id="alpha" min="0" max="1" step="0.01" value="0.30" class="w-full">
+                        </div>
+
+                        <div>
+                            <label class="label-tech">Emissivity (ε) (表面對紅外線的放射率): <span id="valEpsilon" class="text-cyan-400">0.80</span></label>
+                            <input type="range" id="epsilon" min="0.01" max="1" step="0.01" value="0.80" class="w-full">
+                        </div>
+
+                        <div>
+                            <label class="label-tech">系統內部廢熱 (Q_int) [W]</label>
+                            <input type="number" id="qInternal" value="100" class="w-full">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="label-tech">陽光照射面積 (A_projected) [m²]</label>
+                                <input type="number" id="areaProjected" value="1.0" step="0.1" class="w-full text-center">
+                            </div>
+                            <div>
+                                <label class="label-tech">輻射散熱面積 (A_radiative) [m²]</label>
+                                <input type="number" id="areaRadiative" value="6.0" step="0.1" class="w-full text-center">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="industrial-card p-4 bg-black/40 border-dashed border-cyan-900/50 text-center">
+                    <h3 class="text-xs font-bold text-slate-500 mb-2 uppercase">Core Equation</h3>
+                    <code class="text-[10px] text-cyan-700 block leading-tight">
+                        T = [(α · S · A_p + Q_int) / (ε · σ · A_rad)]^0.25
+                    </code>
+                </div>
+            </div>
+
+            <!-- 監控面板 -->
+            <div class="lg:col-span-8 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="industrial-card p-6 bg-cyan-950/10 border-cyan-900/30">
+                        <label class="label-tech text-cyan-600">表面平衡溫度 Equilibrium Temp (K)</label>
+                        <div id="resK" class="value-display text-5xl font-bold text-cyan-400">0.00 K</div>
+                    </div>
+                    <div class="industrial-card p-6 bg-orange-950/10 border-orange-900/30">
+                        <label class="label-tech text-orange-600">表面平衡溫度 Equilibrium Temp (°C)</label>
+                        <div id="resC" class="value-display text-5xl font-bold text-orange-500">0.00 °C</div>
+                    </div>
+                </div>
+
+                <div class="industrial-card p-6">
+                    <div class="h-[250px] w-full">
+                        <canvas id="tempChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 設計備註欄 -->
+                <div class="industrial-card p-4 border-orange-900/40">
+                    <h2 class="text-xs font-bold text-orange-500 flex items-center mb-3">
+                        <span class="w-2 h-2 bg-orange-500 mr-2"></span> DESIGN NOTES / REFERENCE
+                    </h2>
+                    
+                    <div class="notes-area p-3 text-slate-300 border border-slate-800 bg-black/40 italic">
+                        <ul class="space-y-1 text-[11px] list-none">
+                            <li class="flex gap-2">
+                                <span class="text-orange-600">●</span> 
+                                <span><strong>熱設計餘裕：</strong> 初步設計應保留 ±10°C 餘裕；若運行接近極限，需導入主動熱控 (Louver/Heater)。</span>
+                            </li>
+                            <li class="flex gap-2">
+                                <span class="text-orange-600">●</span> 
+                                <span><strong>材料劣化：</strong> 表面吸收率 (α) 隨時間上升，EOL 屬性常較 BOL 高出約 50% 至 100%。</span>
+                            </li>
+                            <li class="flex gap-2">
+                                <span class="text-orange-600">●</span> 
+                                <span><strong>工況定義：</strong> Hot Case (近日點+EOL+全功耗)；Cold Case (遠日點/食區+BOL+待機功耗)。</span>
+                            </li>
+                            <li class="flex gap-2">
+                                <span class="text-orange-600">●</span> 
+                                <span><strong>模型限制：</strong> 採單節點等溫假設，暫不考慮行星反照 (Albedo) 及地球紅外 (IR) 影響。</span>
+                            </li>
+                            <li class="flex gap-2">
+                                <span class="text-orange-600">●</span> 
+                                <span><strong>平衡方程：</strong> 熱平衡時，吸熱等於放熱：Qabsorbed + Qinternal = Qemitted。</span>
+                            </li>
+                            <li class="flex gap-2">
+                                <span class="text-orange-600">●</span> 
+                                <span><strong>環境表面溫度：</strong> 地球軌道背陽面表面溫度可達-170°C以下,向陽面表面溫度可達120°C以上</span>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="mt-8 text-center">
+            <p class="text-[10px] text-slate-600 font-mono tracking-widest uppercase">
+                Warning: Isothermal assumption applied. Check orbit IR manually.
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // 核心計算常數
+        const SIGMA = 5.670374419e-8;
+        let chart;
+
+        // 阻擋滑鼠右鍵選單
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        }, false);
+
+        function calculate() {
+            const S = parseFloat(document.getElementById('solarFlux').value) || 0;
+            const alpha = parseFloat(document.getElementById('alpha').value);
+            const epsilon = parseFloat(document.getElementById('epsilon').value);
+            const Qint = parseFloat(document.getElementById('qInternal').value) || 0;
+            const Ap = parseFloat(document.getElementById('areaProjected').value) || 0.1;
+            const Ar = parseFloat(document.getElementById('areaRadiative').value) || 0.1;
+
+            document.getElementById('valAlpha').innerText = alpha.toFixed(2);
+            document.getElementById('valEpsilon').innerText = epsilon.toFixed(2);
+
+            const Qsolar = alpha * S * Ap;
+            const Qtotal = Qsolar + Qint;
+
+            const T4 = Qtotal / (epsilon * SIGMA * Ar);
+            const T = Math.pow(T4, 0.25);
+            const Tc = T - 273.15;
+
+            document.getElementById('resK').innerText = T.toFixed(2) + " K";
+            document.getElementById('resC').innerText = Tc.toFixed(2) + " °C";
+
+            updateChart(epsilon, SIGMA, Ar);
+        }
+
+        function updateChart(eps, sig, ar) {
+            const temps = [];
+            const heatOut = [];
+            for (let t = 173; t <= 473; t += 20) {
+                temps.push(t - 273);
+                heatOut.push(eps * sig * ar * Math.pow(t, 4));
+            }
+            if (chart) {
+                chart.data.labels = temps;
+                chart.data.datasets[0].data = heatOut;
+                chart.update();
+            } else {
+                const ctx = document.getElementById('tempChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: temps,
+                        datasets: [{
+                            label: 'Radiation Heat Rejection (W)',
+                            data: heatOut,
+                            borderColor: '#00f2ff',
+                            borderWidth: 2,
+                            backgroundColor: 'rgba(0, 242, 255, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { 
+                                title: { display: true, text: '散熱功率 (W)', color: '#718096', font: { family: 'JetBrains Mono', size: 10 } },
+                                grid: { color: '#2d3748' }, 
+                                ticks: { color: '#718096', font: { family: 'Share Tech Mono' } } 
+                            },
+                            x: { 
+                                title: { display: true, text: '平衡溫度 (°C)', color: '#718096', font: { family: 'JetBrains Mono', size: 10 } },
+                                grid: { color: '#2d3748' }, 
+                                ticks: { color: '#718096', font: { family: 'Share Tech Mono' } } 
+                            }
+                        },
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `熱釋放: ${context.parsed.y.toFixed(1)} W`;
+                                    },
+                                    title: function(context) {
+                                        return `溫度: ${context[0].label} °C`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', calculate);
+        });
+
+        window.onload = () => {
+            calculate();
+        };
+    </script>
+</body>
+</html>
